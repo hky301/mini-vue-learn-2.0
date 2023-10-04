@@ -1,6 +1,11 @@
+import { extend } from "@hky-vue/shared"
 
 class ReactiveEffect {
   private _fn: any
+  deps = []
+  active = true
+  onStop?: () => void
+
   constructor(fn, public scheduler?) {
     this._fn = fn
   }
@@ -8,14 +13,36 @@ class ReactiveEffect {
     activeEffect = this
     return this._fn()
   }
+  stop() {
+    if (this.active) {
+      cleanupEffect(this)
+      if (this.onStop) {
+        this.onStop()
+      }
+      this.active = false
+    }
+  }
+}
+
+function cleanupEffect(effect) {
+  effect.deps.forEach((dep: any) => {
+    dep.delete(effect)
+  })
+}
+
+export function stop(runner) {
+  runner.effect.stop()
 }
 
 export function effect(fn, options: any = {}) {
   const _effect = new ReactiveEffect(fn, options.scheduler)
+  extend(_effect, options)
 
   _effect.run()
+  const runner: any = _effect.run.bind(_effect)
+  runner.effect = _effect
 
-  return _effect.run.bind(_effect)
+  return runner
 }
 
 let activeEffect
@@ -33,7 +60,11 @@ export function track(target, key) {
     dep = new Set()
     depsMap.set(key, dep)
   }
+
+  if (!activeEffect) return
+
   dep.add(activeEffect)
+  activeEffect.deps.push(dep)
 }
 
 
