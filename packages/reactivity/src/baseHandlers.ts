@@ -1,5 +1,6 @@
+import { isObject } from "@hky-vue/shared"
 import { track, trigger } from "./effect"
-import { ReactiveFlags } from "./reactive"
+import { ReactiveFlags, reactive, readonly } from "./reactive"
 
 function createGetter(isReadonly = false) {
   return function get(target, key) {
@@ -9,6 +10,10 @@ function createGetter(isReadonly = false) {
       return !isReadonly
     } else if (key === ReactiveFlags.IS_READONLY) {
       return isReadonly
+    }
+
+    if (isObject(res)) {
+      return isReadonly ? readonly(res) : reactive(res)
     }
 
     if (!isReadonly) {
