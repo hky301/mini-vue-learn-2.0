@@ -5,6 +5,9 @@ export function render(vnode, container) {
 }
 
 function patch(vnode, container) {
+
+  // 区分是element 还是 component 类型
+  // processElement()
   processComponent(vnode, container)
 }
 

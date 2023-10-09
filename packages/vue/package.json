@@ -8,5 +8,9 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@hky-vue/reactivity": "workspace:^",
+    "@hky-vue/runtime-core": "workspace:^"
+  }
 }
