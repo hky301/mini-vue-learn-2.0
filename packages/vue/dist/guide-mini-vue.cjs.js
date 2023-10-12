@@ -1,13 +1,5 @@
 'use strict';
 
-function isObject(target) {
-    return typeof target === 'object' && target !== null;
-}
-const extend = Object.assign;
-const hasChanged = (val, newValue) => {
-    return !Object.is(val, newValue);
-};
-
 const publicPropertiesMap = {
     $el: (i) => i.vnode.el
 };
@@ -65,10 +57,11 @@ function render(vnode, container) {
 }
 function patch(vnode, container) {
     // 区分是element 还是 component 类型
-    if (typeof vnode.type === 'string') {
+    const { shapeFlag } = vnode;
+    if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
         processElement(vnode, container);
     }
-    else if (isObject(vnode.type)) {
+    else if (shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
         processComponent(vnode, container);
     }
 }
@@ -77,11 +70,11 @@ function processElement(vnode, container) {
 }
 function mountElement(vnode, container) {
     const el = (vnode.el = document.createElement(vnode.type));
-    const { children, props } = vnode;
-    if (typeof children === 'string') {
+    const { children, props, shapeFlag } = vnode;
+    if (shapeFlag & 4 /* ShapeFlags.TEXT_CHILDREN */) {
         el.textContent = children;
     }
-    else if (Array.isArray(children)) {
+    else if (shapeFlag & 8 /* ShapeFlags.ARRAY_CHILDREN */) {
         mountChildren(vnode, el);
     }
     for (const key in props) {
@@ -118,9 +111,19 @@ function createVNode(type, props, children) {
         type,
         props,
         children,
+        shapeFlag: getShapeFlag(type),
         el: null
     };
+    if (typeof children === 'string') {
+        vnode.shapeFlag |= 4 /* ShapeFlags.TEXT_CHILDREN */;
+    }
+    else if (Array.isArray(children)) {
+        vnode.shapeFlag |= 8 /* ShapeFlags.ARRAY_CHILDREN */;
+    }
     return vnode;
+}
+function getShapeFlag(type) {
+    return typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : 2 /* ShapeFlags.STATEFUL_COMPONENT */;
 }
 
 function createApp(rootComponent) {
@@ -135,6 +138,14 @@ function createApp(rootComponent) {
 function h(type, props, children) {
     return createVNode(type, props, children);
 }
+
+function isObject(target) {
+    return typeof target === 'object' && target !== null;
+}
+const extend = Object.assign;
+const hasChanged = (val, newValue) => {
+    return !Object.is(val, newValue);
+};
 
 let activeEffect;
 let shouldTrack = false;
