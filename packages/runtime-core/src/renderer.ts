@@ -20,7 +20,7 @@ function processElement(vnode, container) {
 }
 
 function mountElement(vnode, container) {
-  const el = document.createElement(vnode.type)
+  const el = (vnode.el = document.createElement(vnode.type))
   const { children, props } = vnode
   if (typeof children === 'string') {
     el.textContent = children
@@ -46,18 +46,20 @@ function processComponent(vnode, container) {
   mountComponent(vnode, container)
 }
 
-function mountComponent(vnode, container) {
+function mountComponent(initialVnode, container) {
   // 创建组件实例
-  const instance = createComponentInstance(vnode)
+  const instance = createComponentInstance(initialVnode)
   // 处理setup函数
   setupComponent(instance)
-  setupRenderEffect(instance, container)
+  setupRenderEffect(instance, initialVnode, container)
 }
 
-function setupRenderEffect(instance, container) {
-  const subTree = instance.render()
+function setupRenderEffect(instance, initialVnode, container) {
+  const { proxy } = instance
+  const subTree = instance.render.call(proxy)
 
   // patch
   patch(subTree, container)
+  initialVnode.el = subTree.el
 }
 

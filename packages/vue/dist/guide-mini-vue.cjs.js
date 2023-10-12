@@ -8,10 +8,27 @@ const hasChanged = (val, newValue) => {
     return !Object.is(val, newValue);
 };
 
+const publicPropertiesMap = {
+    $el: (i) => i.vnode.el
+};
+const PublicInstanceProxyHandlers = {
+    get({ _: instance }, key) {
+        const { setupState } = instance;
+        if (key in setupState) {
+            return setupState[key];
+        }
+        const publicGetter = publicPropertiesMap[key];
+        if (publicGetter) {
+            return publicGetter(instance);
+        }
+    }
+};
+
 function createComponentInstance(vnode) {
     const component = {
         vnode,
-        type: vnode.type
+        type: vnode.type,
+        setupState: {}
     };
     return component;
 }
@@ -23,6 +40,7 @@ function setupComponent(instance) {
 }
 function setupStateFulComponent(instance) {
     const Component = instance.type;
+    instance.proxy = new Proxy({ _: instance }, PublicInstanceProxyHandlers);
     const { setup } = Component;
     if (setup) {
         const setupResult = setup();
@@ -58,7 +76,7 @@ function processElement(vnode, container) {
     mountElement(vnode, container);
 }
 function mountElement(vnode, container) {
-    const el = document.createElement(vnode.type);
+    const el = (vnode.el = document.createElement(vnode.type));
     const { children, props } = vnode;
     if (typeof children === 'string') {
         el.textContent = children;
@@ -80,24 +98,27 @@ function mountChildren(vnode, container) {
 function processComponent(vnode, container) {
     mountComponent(vnode, container);
 }
-function mountComponent(vnode, container) {
+function mountComponent(initialVnode, container) {
     // 创建组件实例
-    const instance = createComponentInstance(vnode);
+    const instance = createComponentInstance(initialVnode);
     // 处理setup函数
     setupComponent(instance);
-    setupRenderEffect(instance, container);
+    setupRenderEffect(instance, initialVnode, container);
 }
-function setupRenderEffect(instance, container) {
-    const subTree = instance.render();
+function setupRenderEffect(instance, initialVnode, container) {
+    const { proxy } = instance;
+    const subTree = instance.render.call(proxy);
     // patch
     patch(subTree, container);
+    initialVnode.el = subTree.el;
 }
 
 function createVNode(type, props, children) {
     const vnode = {
         type,
         props,
-        children
+        children,
+        el: null
     };
     return vnode;
 }
