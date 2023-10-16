@@ -7,7 +7,13 @@ export const App = {
     window.self = this
     return h('div', {
       id: 'root',
-      class: ['red', 'blue']
+      class: ['red', 'blue'],
+      onClick() {
+        console.log('click');
+      },
+      onMousedown() {
+        console.log('mousedown');
+      }
     },
       "hi," + this.msg
       // [h('p', { class: 'red' }, 'hi,'), h('p', { class: 'blue' }, 'mini-vue')]
