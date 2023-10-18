@@ -1,149 +1,3 @@
-const publicPropertiesMap = {
-    $el: (i) => i.vnode.el
-};
-const PublicInstanceProxyHandlers = {
-    get({ _: instance }, key) {
-        const { setupState } = instance;
-        if (key in setupState) {
-            return setupState[key];
-        }
-        const publicGetter = publicPropertiesMap[key];
-        if (publicGetter) {
-            return publicGetter(instance);
-        }
-    }
-};
-
-function createComponentInstance(vnode) {
-    const component = {
-        vnode,
-        type: vnode.type,
-        setupState: {}
-    };
-    return component;
-}
-function setupComponent(instance) {
-    // TODO:
-    // initProps()
-    // initSlots()
-    setupStateFulComponent(instance);
-}
-function setupStateFulComponent(instance) {
-    const Component = instance.type;
-    instance.proxy = new Proxy({ _: instance }, PublicInstanceProxyHandlers);
-    const { setup } = Component;
-    if (setup) {
-        const setupResult = setup();
-        handleSetupResult(instance, setupResult);
-    }
-}
-function handleSetupResult(instance, setupResult) {
-    if (typeof setupResult === 'object') {
-        instance.setupState = setupResult;
-    }
-    finishComponentSetup(instance);
-}
-function finishComponentSetup(instance) {
-    const Component = instance.type;
-    if (Component.render) {
-        instance.render = Component.render;
-    }
-}
-
-function render(vnode, container) {
-    patch(vnode, container);
-}
-function patch(vnode, container) {
-    // 区分是element 还是 component 类型
-    const { shapeFlag } = vnode;
-    if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
-        processElement(vnode, container);
-    }
-    else if (shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
-        processComponent(vnode, container);
-    }
-}
-function processElement(vnode, container) {
-    mountElement(vnode, container);
-}
-function mountElement(vnode, container) {
-    const el = (vnode.el = document.createElement(vnode.type));
-    const { children, props, shapeFlag } = vnode;
-    if (shapeFlag & 4 /* ShapeFlags.TEXT_CHILDREN */) {
-        el.textContent = children;
-    }
-    else if (shapeFlag & 8 /* ShapeFlags.ARRAY_CHILDREN */) {
-        mountChildren(vnode, el);
-    }
-    for (const key in props) {
-        const val = props[key];
-        const isOn = (key) => /^on[A-Z]/.test(key);
-        if (isOn(key)) {
-            const event = key.slice(2).toLowerCase();
-            el.addEventListener(event, val);
-        }
-        else {
-            el.setAttribute(key, val);
-        }
-    }
-    container.append(el);
-}
-function mountChildren(vnode, container) {
-    vnode.children.forEach(v => {
-        patch(v, container);
-    });
-}
-function processComponent(vnode, container) {
-    mountComponent(vnode, container);
-}
-function mountComponent(initialVnode, container) {
-    // 创建组件实例
-    const instance = createComponentInstance(initialVnode);
-    // 处理setup函数
-    setupComponent(instance);
-    setupRenderEffect(instance, initialVnode, container);
-}
-function setupRenderEffect(instance, initialVnode, container) {
-    const { proxy } = instance;
-    const subTree = instance.render.call(proxy);
-    // patch
-    patch(subTree, container);
-    initialVnode.el = subTree.el;
-}
-
-function createVNode(type, props, children) {
-    const vnode = {
-        type,
-        props,
-        children,
-        shapeFlag: getShapeFlag(type),
-        el: null
-    };
-    if (typeof children === 'string') {
-        vnode.shapeFlag |= 4 /* ShapeFlags.TEXT_CHILDREN */;
-    }
-    else if (Array.isArray(children)) {
-        vnode.shapeFlag |= 8 /* ShapeFlags.ARRAY_CHILDREN */;
-    }
-    return vnode;
-}
-function getShapeFlag(type) {
-    return typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : 2 /* ShapeFlags.STATEFUL_COMPONENT */;
-}
-
-function createApp(rootComponent) {
-    return {
-        mount(rootContainer) {
-            const vnode = createVNode(rootComponent);
-            render(vnode, rootContainer);
-        }
-    };
-}
-
-function h(type, props, children) {
-    return createVNode(type, props, children);
-}
-
 function isObject(target) {
     return typeof target === 'object' && target !== null;
 }
@@ -151,6 +5,7 @@ const extend = Object.assign;
 const hasChanged = (val, newValue) => {
     return !Object.is(val, newValue);
 };
+const hasOwn = (val, key) => Object.prototype.hasOwnProperty.call(val, key);
 
 let activeEffect;
 let shouldTrack = false;
@@ -296,8 +151,12 @@ function readonly(raw) {
 function shallowReadonly(raw) {
     return createActiveObject(raw, shallowReadonlyHandlers);
 }
-function createActiveObject(raw, baseHandlers) {
-    return new Proxy(raw, baseHandlers);
+function createActiveObject(target, baseHandlers) {
+    if (!isObject(target)) {
+        console.warn(`target ${target} 必须是一个对象`);
+        return target;
+    }
+    return new Proxy(target, baseHandlers);
 }
 function isReactive(value) {
     return !!value["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */];
@@ -381,6 +240,163 @@ class ComputedRefImpl {
 }
 function computed(getter) {
     return new ComputedRefImpl(getter);
+}
+
+function initProps(instance, rawProps) {
+    instance.props = rawProps;
+}
+
+const publicPropertiesMap = {
+    $el: (i) => i.vnode.el
+};
+const PublicInstanceProxyHandlers = {
+    get({ _: instance }, key) {
+        const { setupState, props } = instance;
+        if (key in setupState) {
+            return setupState[key];
+        }
+        if (hasOwn(setupState, key)) {
+            return setupState[key];
+        }
+        else if (hasOwn(props, key)) {
+            return props[key];
+        }
+        const publicGetter = publicPropertiesMap[key];
+        if (publicGetter) {
+            return publicGetter(instance);
+        }
+    }
+};
+
+function createComponentInstance(vnode) {
+    const component = {
+        vnode,
+        type: vnode.type,
+        setupState: {},
+        props: {}
+    };
+    return component;
+}
+function setupComponent(instance) {
+    // TODO:
+    initProps(instance, instance.vnode.props);
+    // initSlots()
+    setupStateFulComponent(instance);
+}
+function setupStateFulComponent(instance) {
+    const Component = instance.type;
+    instance.proxy = new Proxy({ _: instance }, PublicInstanceProxyHandlers);
+    const { setup } = Component;
+    if (setup) {
+        const setupResult = setup(shallowReadonly(instance.props));
+        handleSetupResult(instance, setupResult);
+    }
+}
+function handleSetupResult(instance, setupResult) {
+    if (typeof setupResult === 'object') {
+        instance.setupState = setupResult;
+    }
+    finishComponentSetup(instance);
+}
+function finishComponentSetup(instance) {
+    const Component = instance.type;
+    if (Component.render) {
+        instance.render = Component.render;
+    }
+}
+
+function render(vnode, container) {
+    patch(vnode, container);
+}
+function patch(vnode, container) {
+    // 区分是element 还是 component 类型
+    const { shapeFlag } = vnode;
+    if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
+        processElement(vnode, container);
+    }
+    else if (shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
+        processComponent(vnode, container);
+    }
+}
+function processElement(vnode, container) {
+    mountElement(vnode, container);
+}
+function mountElement(vnode, container) {
+    const el = (vnode.el = document.createElement(vnode.type));
+    const { children, props, shapeFlag } = vnode;
+    if (shapeFlag & 4 /* ShapeFlags.TEXT_CHILDREN */) {
+        el.textContent = children;
+    }
+    else if (shapeFlag & 8 /* ShapeFlags.ARRAY_CHILDREN */) {
+        mountChildren(vnode, el);
+    }
+    for (const key in props) {
+        const val = props[key];
+        const isOn = (key) => /^on[A-Z]/.test(key);
+        if (isOn(key)) {
+            const event = key.slice(2).toLowerCase();
+            el.addEventListener(event, val);
+        }
+        else {
+            el.setAttribute(key, val);
+        }
+    }
+    container.append(el);
+}
+function mountChildren(vnode, container) {
+    vnode.children.forEach(v => {
+        patch(v, container);
+    });
+}
+function processComponent(vnode, container) {
+    mountComponent(vnode, container);
+}
+function mountComponent(initialVnode, container) {
+    // 创建组件实例
+    const instance = createComponentInstance(initialVnode);
+    // 处理setup函数
+    setupComponent(instance);
+    setupRenderEffect(instance, initialVnode, container);
+}
+function setupRenderEffect(instance, initialVnode, container) {
+    const { proxy } = instance;
+    const subTree = instance.render.call(proxy);
+    // patch
+    patch(subTree, container);
+    initialVnode.el = subTree.el;
+}
+
+function createVNode(type, props, children) {
+    const vnode = {
+        type,
+        props,
+        children,
+        shapeFlag: getShapeFlag(type),
+        el: null
+    };
+    if (typeof children === 'string') {
+        vnode.shapeFlag |= 4 /* ShapeFlags.TEXT_CHILDREN */;
+    }
+    else if (Array.isArray(children)) {
+        vnode.shapeFlag |= 8 /* ShapeFlags.ARRAY_CHILDREN */;
+    }
+    return vnode;
+}
+function getShapeFlag(type) {
+    return typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : 2 /* ShapeFlags.STATEFUL_COMPONENT */;
+}
+
+function createApp(rootComponent) {
+    return {
+        mount(rootContainer) {
+            const vnode = createVNode(rootComponent);
+            render(vnode, rootContainer);
+        }
+    };
+}
+
+function h(type, props, children) {
+    return createVNode(type, props, children);
 }
 
 export { ReactiveEffect, computed, createApp, effect, h, isProxy, isReactive, isReadonly, isRef, isTracking, proxyRefs, reactive, readonly, ref, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };
