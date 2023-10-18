@@ -260,7 +260,8 @@ function initProps(instance, rawProps) {
 }
 
 const publicPropertiesMap = {
-    $el: (i) => i.vnode.el
+    $el: (i) => i.vnode.el,
+    $slots: (i) => i.slots
 };
 const PublicInstanceProxyHandlers = {
     get({ _: instance }, key) {
@@ -288,12 +289,29 @@ function emit(instance, event, ...args) {
     handler && handler(...args);
 }
 
+function initSlots(instance, children) {
+    const { vnode } = instance;
+    if (vnode.shapeFlag & 16 /* ShapeFlags.SLOT_CHILDREN */) {
+        normalizeObjectSlots(children, instance.slots);
+    }
+}
+function normalizeObjectSlots(children, slots) {
+    for (const key in children) {
+        const value = children[key];
+        slots[key] = (props) => normalizeSlotValue(value(props));
+    }
+}
+function normalizeSlotValue(value) {
+    return Array.isArray(value) ? value : [value];
+}
+
 function createComponentInstance(vnode) {
     const component = {
         vnode,
         type: vnode.type,
         setupState: {},
         props: {},
+        slots: {},
         emit: () => { }
     };
     component.emit = emit.bind(null, component);
@@ -302,7 +320,7 @@ function createComponentInstance(vnode) {
 function setupComponent(instance) {
     // TODO:
     initProps(instance, instance.vnode.props);
-    // initSlots()
+    initSlots(instance, instance.vnode.children);
     setupStateFulComponent(instance);
 }
 function setupStateFulComponent(instance) {
@@ -402,6 +420,11 @@ function createVNode(type, props, children) {
     else if (Array.isArray(children)) {
         vnode.shapeFlag |= 8 /* ShapeFlags.ARRAY_CHILDREN */;
     }
+    if (vnode.shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
+        if (typeof children === 'object') {
+            vnode.shapeFlag |= 16 /* ShapeFlags.SLOT_CHILDREN */;
+        }
+    }
     return vnode;
 }
 function getShapeFlag(type) {
@@ -421,6 +444,18 @@ function h(type, props, children) {
     return createVNode(type, props, children);
 }
 
+function renderSlots(slots, name, props) {
+    const slot = slots[name];
+    if (slot) {
+        if (typeof slot === 'function') {
+            return createVNode('div', {}, slot(props));
+        }
+        else {
+            return createVNode('div', {}, slot);
+        }
+    }
+}
+
 exports.ReactiveEffect = ReactiveEffect;
 exports.computed = computed;
 exports.createApp = createApp;
@@ -435,6 +470,7 @@ exports.proxyRefs = proxyRefs;
 exports.reactive = reactive;
 exports.readonly = readonly;
 exports.ref = ref;
+exports.renderSlots = renderSlots;
 exports.shallowReadonly = shallowReadonly;
 exports.stop = stop;
 exports.track = track;
