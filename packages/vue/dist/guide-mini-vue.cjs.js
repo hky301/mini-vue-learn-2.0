@@ -328,7 +328,9 @@ function setupStateFulComponent(instance) {
     instance.proxy = new Proxy({ _: instance }, PublicInstanceProxyHandlers);
     const { setup } = Component;
     if (setup) {
+        setCurrentInstance(instance);
         const setupResult = setup(shallowReadonly(instance.props), { emit: instance.emit });
+        setCurrentInstance(null);
         handleSetupResult(instance, setupResult);
     }
 }
@@ -343,6 +345,13 @@ function finishComponentSetup(instance) {
     if (Component.render) {
         instance.render = Component.render;
     }
+}
+let currentInstance = null;
+function getCurrentInstance() {
+    return currentInstance;
+}
+function setCurrentInstance(instance) {
+    currentInstance = instance;
 }
 
 const Fragment = Symbol('Fragment');
@@ -481,6 +490,7 @@ exports.computed = computed;
 exports.createApp = createApp;
 exports.createTextVNode = createTextVNode;
 exports.effect = effect;
+exports.getCurrentInstance = getCurrentInstance;
 exports.h = h;
 exports.isProxy = isProxy;
 exports.isReactive = isReactive;

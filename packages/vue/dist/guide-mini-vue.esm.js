@@ -326,7 +326,9 @@ function setupStateFulComponent(instance) {
     instance.proxy = new Proxy({ _: instance }, PublicInstanceProxyHandlers);
     const { setup } = Component;
     if (setup) {
+        setCurrentInstance(instance);
         const setupResult = setup(shallowReadonly(instance.props), { emit: instance.emit });
+        setCurrentInstance(null);
         handleSetupResult(instance, setupResult);
     }
 }
@@ -341,6 +343,13 @@ function finishComponentSetup(instance) {
     if (Component.render) {
         instance.render = Component.render;
     }
+}
+let currentInstance = null;
+function getCurrentInstance() {
+    return currentInstance;
+}
+function setCurrentInstance(instance) {
+    currentInstance = instance;
 }
 
 const Fragment = Symbol('Fragment');
@@ -474,4 +483,4 @@ function renderSlots(slots, name, props) {
     }
 }
 
-export { ReactiveEffect, computed, createApp, createTextVNode, effect, h, isProxy, isReactive, isReadonly, isRef, isTracking, proxyRefs, reactive, readonly, ref, renderSlots, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };
+export { ReactiveEffect, computed, createApp, createTextVNode, effect, getCurrentInstance, h, isProxy, isReactive, isReadonly, isRef, isTracking, proxyRefs, reactive, readonly, ref, renderSlots, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };
