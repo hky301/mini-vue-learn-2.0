@@ -1,14 +1,18 @@
 import { shallowReadonly } from "@hky-vue/reactivity"
 import { initProps } from "./componentProps"
 import { PublicInstanceProxyHandlers } from "./componentPublicInstance"
+import { emit } from "./componentEmit"
 
 export function createComponentInstance(vnode) {
   const component = {
     vnode,
     type: vnode.type,
     setupState: {},
-    props: {}
+    props: {},
+    emit: () => { }
   }
+
+  component.emit = emit.bind(null, component) as any
 
   return component
 }
@@ -28,7 +32,7 @@ function setupStateFulComponent(instance) {
   const { setup } = Component
 
   if (setup) {
-    const setupResult = setup(shallowReadonly(instance.props))
+    const setupResult = setup(shallowReadonly(instance.props), { emit: instance.emit })
 
     handleSetupResult(instance, setupResult)
   }

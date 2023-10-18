@@ -17,7 +17,15 @@ export const App = {
       }
     },
       // "hi," + this.msg
-      [h('p', { class: 'red' }, 'hi,'), h(Foo, { count: 1 })]
+      [h('p', { class: 'red' }, 'hi,'), h(Foo, {
+        count: 1,
+        onAdd: (a, b) => {
+          console.log('App add', a, b);
+        },
+        onAddFoo: () => {
+          console.log('App add foo');
+        }
+      })]
     )
   },
   setup() {

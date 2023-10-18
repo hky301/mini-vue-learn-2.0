@@ -6,6 +6,17 @@ const hasChanged = (val, newValue) => {
     return !Object.is(val, newValue);
 };
 const hasOwn = (val, key) => Object.prototype.hasOwnProperty.call(val, key);
+const camelize = (str) => {
+    return str.replace(/-(\w)/g, (_, c) => {
+        return c ? c.toUpperCase() : '';
+    });
+};
+const capitalize = (str) => {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+};
+const toHandlerKey = (str) => {
+    return str ? 'on' + capitalize(str) : '';
+};
 
 let activeEffect;
 let shouldTrack = false;
@@ -268,13 +279,22 @@ const PublicInstanceProxyHandlers = {
     }
 };
 
+function emit(instance, event, ...args) {
+    const { props } = instance;
+    const handlerName = toHandlerKey(camelize(event));
+    const handler = props[handlerName];
+    handler && handler(...args);
+}
+
 function createComponentInstance(vnode) {
     const component = {
         vnode,
         type: vnode.type,
         setupState: {},
-        props: {}
+        props: {},
+        emit: () => { }
     };
+    component.emit = emit.bind(null, component);
     return component;
 }
 function setupComponent(instance) {
@@ -288,7 +308,7 @@ function setupStateFulComponent(instance) {
     instance.proxy = new Proxy({ _: instance }, PublicInstanceProxyHandlers);
     const { setup } = Component;
     if (setup) {
-        const setupResult = setup(shallowReadonly(instance.props));
+        const setupResult = setup(shallowReadonly(instance.props), { emit: instance.emit });
         handleSetupResult(instance, setupResult);
     }
 }
