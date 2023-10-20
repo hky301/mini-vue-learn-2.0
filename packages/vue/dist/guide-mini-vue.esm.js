@@ -1,3 +1,46 @@
+const Fragment = Symbol('Fragment');
+const Text = Symbol('Text');
+function createVNode(type, props, children) {
+    const vnode = {
+        type,
+        props,
+        children,
+        shapeFlag: getShapeFlag(type),
+        el: null
+    };
+    if (typeof children === 'string') {
+        vnode.shapeFlag |= 4 /* ShapeFlags.TEXT_CHILDREN */;
+    }
+    else if (Array.isArray(children)) {
+        vnode.shapeFlag |= 8 /* ShapeFlags.ARRAY_CHILDREN */;
+    }
+    if (vnode.shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
+        if (typeof children === 'object') {
+            vnode.shapeFlag |= 16 /* ShapeFlags.SLOT_CHILDREN */;
+        }
+    }
+    return vnode;
+}
+function createTextVNode(text) {
+    return createVNode(Text, {}, text);
+}
+function getShapeFlag(type) {
+    return typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : 2 /* ShapeFlags.STATEFUL_COMPONENT */;
+}
+
+function h(type, props, children) {
+    return createVNode(type, props, children);
+}
+
+function renderSlots(slots, name, props) {
+    const slot = slots[name];
+    if (slot) {
+        if (typeof slot === 'function') {
+            return createVNode(Fragment, {}, slot(props));
+        }
+    }
+}
+
 function isObject(target) {
     return typeof target === 'object' && target !== null;
 }
@@ -353,137 +396,6 @@ function setCurrentInstance(instance) {
     currentInstance = instance;
 }
 
-const Fragment = Symbol('Fragment');
-const Text = Symbol('Text');
-function createVNode(type, props, children) {
-    const vnode = {
-        type,
-        props,
-        children,
-        shapeFlag: getShapeFlag(type),
-        el: null
-    };
-    if (typeof children === 'string') {
-        vnode.shapeFlag |= 4 /* ShapeFlags.TEXT_CHILDREN */;
-    }
-    else if (Array.isArray(children)) {
-        vnode.shapeFlag |= 8 /* ShapeFlags.ARRAY_CHILDREN */;
-    }
-    if (vnode.shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
-        if (typeof children === 'object') {
-            vnode.shapeFlag |= 16 /* ShapeFlags.SLOT_CHILDREN */;
-        }
-    }
-    return vnode;
-}
-function createTextVNode(text) {
-    return createVNode(Text, {}, text);
-}
-function getShapeFlag(type) {
-    return typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : 2 /* ShapeFlags.STATEFUL_COMPONENT */;
-}
-
-function render(vnode, container) {
-    patch(vnode, container, null);
-}
-function patch(vnode, container, parentComponent) {
-    const { type, shapeFlag } = vnode;
-    switch (type) {
-        case Fragment:
-            processFragment(vnode, container, parentComponent);
-            break;
-        case Text:
-            processText(vnode, container);
-            break;
-        default:
-            // 区分是element 还是 component 类型
-            if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
-                processElement(vnode, container, parentComponent);
-            }
-            else if (shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
-                processComponent(vnode, container, parentComponent);
-            }
-            break;
-    }
-}
-function processFragment(vnode, container, parentComponent) {
-    mountChildren(vnode, container, parentComponent);
-}
-function processText(vnode, container) {
-    const { children } = vnode;
-    const textNode = (vnode.el = document.createTextNode(children));
-    container.append(textNode);
-}
-function processElement(vnode, container, parentComponent) {
-    mountElement(vnode, container, parentComponent);
-}
-function mountElement(vnode, container, parentComponent) {
-    const el = (vnode.el = document.createElement(vnode.type));
-    const { children, props, shapeFlag } = vnode;
-    if (shapeFlag & 4 /* ShapeFlags.TEXT_CHILDREN */) {
-        el.textContent = children;
-    }
-    else if (shapeFlag & 8 /* ShapeFlags.ARRAY_CHILDREN */) {
-        mountChildren(vnode, el, parentComponent);
-    }
-    for (const key in props) {
-        const val = props[key];
-        const isOn = (key) => /^on[A-Z]/.test(key);
-        if (isOn(key)) {
-            const event = key.slice(2).toLowerCase();
-            el.addEventListener(event, val);
-        }
-        else {
-            el.setAttribute(key, val);
-        }
-    }
-    container.append(el);
-}
-function mountChildren(vnode, container, parentComponent) {
-    vnode.children.forEach(v => {
-        patch(v, container, parentComponent);
-    });
-}
-function processComponent(vnode, container, parentComponent) {
-    mountComponent(vnode, container, parentComponent);
-}
-function mountComponent(initialVnode, container, parentComponent) {
-    // 创建组件实例
-    const instance = createComponentInstance(initialVnode, parentComponent);
-    // 处理setup函数
-    setupComponent(instance);
-    setupRenderEffect(instance, initialVnode, container);
-}
-function setupRenderEffect(instance, initialVnode, container) {
-    const { proxy } = instance;
-    const subTree = instance.render.call(proxy);
-    // patch
-    patch(subTree, container, instance);
-    initialVnode.el = subTree.el;
-}
-
-function createApp(rootComponent) {
-    return {
-        mount(rootContainer) {
-            const vnode = createVNode(rootComponent);
-            render(vnode, rootContainer);
-        }
-    };
-}
-
-function h(type, props, children) {
-    return createVNode(type, props, children);
-}
-
-function renderSlots(slots, name, props) {
-    const slot = slots[name];
-    if (slot) {
-        if (typeof slot === 'function') {
-            return createVNode(Fragment, {}, slot(props));
-        }
-    }
-}
-
 function provide(key, value) {
     const currentInstance = getCurrentInstance();
     if (currentInstance) {
@@ -513,4 +425,119 @@ function inject(key, defaultValue) {
     }
 }
 
-export { ReactiveEffect, computed, createApp, createTextVNode, effect, getCurrentInstance, h, inject, isProxy, isReactive, isReadonly, isRef, isTracking, provide, proxyRefs, reactive, readonly, ref, renderSlots, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };
+function createAppApi(render) {
+    return function createApp(rootComponent) {
+        return {
+            mount(rootContainer) {
+                const vnode = createVNode(rootComponent);
+                render(vnode, rootContainer);
+            }
+        };
+    };
+}
+
+function createRenderer(options) {
+    const { createElement: hostCreateElement, patchProp: hostPatchProp, insert: hostInsert } = options;
+    function render(vnode, container) {
+        patch(vnode, container, null);
+    }
+    function patch(vnode, container, parentComponent) {
+        const { type, shapeFlag } = vnode;
+        switch (type) {
+            case Fragment:
+                processFragment(vnode, container, parentComponent);
+                break;
+            case Text:
+                processText(vnode, container);
+                break;
+            default:
+                // 区分是element 还是 component 类型
+                if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
+                    processElement(vnode, container, parentComponent);
+                }
+                else if (shapeFlag & 2 /* ShapeFlags.STATEFUL_COMPONENT */) {
+                    processComponent(vnode, container, parentComponent);
+                }
+                break;
+        }
+    }
+    function processFragment(vnode, container, parentComponent) {
+        mountChildren(vnode, container, parentComponent);
+    }
+    function processText(vnode, container) {
+        const { children } = vnode;
+        const textNode = (vnode.el = document.createTextNode(children));
+        container.append(textNode);
+    }
+    function processElement(vnode, container, parentComponent) {
+        mountElement(vnode, container, parentComponent);
+    }
+    function mountElement(vnode, container, parentComponent) {
+        const el = (vnode.el = hostCreateElement(vnode.type));
+        const { children, props, shapeFlag } = vnode;
+        if (shapeFlag & 4 /* ShapeFlags.TEXT_CHILDREN */) {
+            el.textContent = children;
+        }
+        else if (shapeFlag & 8 /* ShapeFlags.ARRAY_CHILDREN */) {
+            mountChildren(vnode, el, parentComponent);
+        }
+        for (const key in props) {
+            const val = props[key];
+            hostPatchProp(el, key, val);
+        }
+        hostInsert(el, container);
+    }
+    function mountChildren(vnode, container, parentComponent) {
+        vnode.children.forEach(v => {
+            patch(v, container, parentComponent);
+        });
+    }
+    function processComponent(vnode, container, parentComponent) {
+        mountComponent(vnode, container, parentComponent);
+    }
+    function mountComponent(initialVnode, container, parentComponent) {
+        // 创建组件实例
+        const instance = createComponentInstance(initialVnode, parentComponent);
+        // 处理setup函数
+        setupComponent(instance);
+        setupRenderEffect(instance, initialVnode, container);
+    }
+    function setupRenderEffect(instance, initialVnode, container) {
+        const { proxy } = instance;
+        const subTree = instance.render.call(proxy);
+        // patch
+        patch(subTree, container, instance);
+        initialVnode.el = subTree.el;
+    }
+    return {
+        render,
+        createApp: createAppApi(render)
+    };
+}
+
+function createElement(type) {
+    return document.createElement(type);
+}
+function patchProp(el, key, val) {
+    const isOn = (key) => /^on[A-Z]/.test(key);
+    if (isOn(key)) {
+        const event = key.slice(2).toLowerCase();
+        el.addEventListener(event, val);
+    }
+    else {
+        el.setAttribute(key, val);
+    }
+}
+function insert(el, parent) {
+    parent.append(el);
+}
+const renderer = createRenderer({
+    createElement,
+    patchProp,
+    insert
+});
+function createApp(...args) {
+    return renderer.createApp(...args);
+}
+
+export { ReactiveEffect, computed, createApp, createRenderer, createTextVNode, effect, getCurrentInstance, h, inject, isProxy, isReactive, isReadonly, isRef, isTracking, provide, proxyRefs, reactive, readonly, ref, renderSlots, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };
