@@ -1,4 +1,4 @@
-import { shallowReadonly } from "@hky-vue/reactivity"
+import { proxyRefs, shallowReadonly } from "@hky-vue/reactivity"
 import { initProps } from "./componentProps"
 import { PublicInstanceProxyHandlers } from "./componentPublicInstance"
 import { emit } from "./componentEmit"
@@ -13,6 +13,8 @@ export function createComponentInstance(vnode, parent) {
     slots: {},
     provides: parent ? parent.provides : {},
     parent,
+    isMounted: false,
+    subTree: {},
     emit: () => { }
   }
 
@@ -44,7 +46,7 @@ function setupStateFulComponent(instance) {
 
 function handleSetupResult(instance, setupResult) {
   if (typeof setupResult === 'object') {
-    instance.setupState = setupResult
+    instance.setupState = proxyRefs(setupResult)
   }
   finishComponentSetup(instance)
 }
