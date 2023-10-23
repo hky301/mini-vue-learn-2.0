@@ -1,4 +1,4 @@
-import { ShapeFlags, isObject } from "@hky-vue/shared"
+import { EMPTY_OBJ, ShapeFlags } from "@hky-vue/shared"
 import { createComponentInstance, setupComponent } from "./component"
 import { Fragment, Text } from "./vnode";
 import { createAppApi } from "./createApp";
@@ -62,7 +62,34 @@ export function createRenderer(options) {
     console.log('container', container);
 
     // props
+    // 1.之前的值和现在的值不一样了，修改
+    // 2.null || undefined 删除
+    // 3.旧的属性在新的里面没有了，删除
+    const oldProps = n1.props || EMPTY_OBJ
+    const newProps = n2.props || EMPTY_OBJ
+    const el = (n2.el = n1.el)
+    patchProps(el, oldProps, newProps)
     // children
+  }
+
+  function patchProps(el, oldProps, newProps) {
+    if (oldProps !== newProps) {
+      for (const key in newProps) {
+        const prevProp = oldProps[key]
+        const nextProp = newProps[key]
+        if (prevProp !== nextProp) {
+          hostPatchProp(el, key, prevProp, nextProp)
+        }
+      }
+
+      if (oldProps !== EMPTY_OBJ) {
+        for (const key in oldProps) {
+          if (!(key in newProps)) {
+            hostPatchProp(el, key, oldProps[key], null)
+          }
+        }
+      }
+    }
   }
 
   function mountElement(vnode, container, parentComponent) {
@@ -77,7 +104,7 @@ export function createRenderer(options) {
 
     for (const key in props) {
       const val = props[key]
-      hostPatchProp(el, key, val)
+      hostPatchProp(el, key, null, val)
     }
     hostInsert(el, container)
   }

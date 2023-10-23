@@ -62,6 +62,7 @@ const capitalize = (str) => {
 const toHandlerKey = (str) => {
     return str ? 'on' + capitalize(str) : '';
 };
+const EMPTY_OBJ = {};
 
 let activeEffect;
 let shouldTrack = false;
@@ -486,7 +487,32 @@ function createRenderer(options) {
         console.log('n2', n2);
         console.log('container', container);
         // props
+        // 1.之前的值和现在的值不一样了，修改
+        // 2.null || undefined 删除
+        // 3.旧的属性在新的里面没有了，删除
+        const oldProps = n1.props || EMPTY_OBJ;
+        const newProps = n2.props || EMPTY_OBJ;
+        const el = (n2.el = n1.el);
+        patchProps(el, oldProps, newProps);
         // children
+    }
+    function patchProps(el, oldProps, newProps) {
+        if (oldProps !== newProps) {
+            for (const key in newProps) {
+                const prevProp = oldProps[key];
+                const nextProp = newProps[key];
+                if (prevProp !== nextProp) {
+                    hostPatchProp(el, key, prevProp, nextProp);
+                }
+            }
+            if (oldProps !== EMPTY_OBJ) {
+                for (const key in oldProps) {
+                    if (!(key in newProps)) {
+                        hostPatchProp(el, key, oldProps[key], null);
+                    }
+                }
+            }
+        }
     }
     function mountElement(vnode, container, parentComponent) {
         const el = (vnode.el = hostCreateElement(vnode.type));
@@ -499,7 +525,7 @@ function createRenderer(options) {
         }
         for (const key in props) {
             const val = props[key];
-            hostPatchProp(el, key, val);
+            hostPatchProp(el, key, null, val);
         }
         hostInsert(el, container);
     }
@@ -551,14 +577,19 @@ function createRenderer(options) {
 function createElement(type) {
     return document.createElement(type);
 }
-function patchProp(el, key, val) {
+function patchProp(el, key, prevVal, nextVal) {
     const isOn = (key) => /^on[A-Z]/.test(key);
     if (isOn(key)) {
         const event = key.slice(2).toLowerCase();
-        el.addEventListener(event, val);
+        el.addEventListener(event, nextVal);
     }
     else {
-        el.setAttribute(key, val);
+        if (nextVal === undefined || nextVal === null) {
+            el.removeAttribute(key);
+        }
+        else {
+            el.setAttribute(key, nextVal);
+        }
     }
 }
 function insert(el, parent) {
