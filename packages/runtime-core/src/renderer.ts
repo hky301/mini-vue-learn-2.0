@@ -3,6 +3,7 @@ import { createComponentInstance, setupComponent } from "./component"
 import { Fragment, Text, isSameVNodeType } from "./vnode";
 import { createAppApi } from "./createApp";
 import { effect } from "@hky-vue/reactivity";
+import { shouldUpdateComponent } from "./componentUpdateUtils";
 
 
 export function createRenderer(options) {
@@ -59,10 +60,6 @@ export function createRenderer(options) {
   }
 
   function patchElement(n1, n2, container, parentComponent, anchor) {
-    console.log('n1', n1);
-    console.log('n2', n2);
-    console.log('container', container);
-
     // props
     // 1.之前的值和现在的值不一样了，修改
     // 2.null || undefined 删除
@@ -273,42 +270,61 @@ export function createRenderer(options) {
   }
 
   function processComponent(n1, n2, container, parentComponent, anchor) {
-    mountComponent(n2, container, parentComponent, anchor)
+    if (!n1) {
+      mountComponent(n2, container, parentComponent, anchor)
+    } else {
+      updateComponent(n1, n2)
+    }
+  }
+
+  function updateComponent(n1, n2) {
+    const instance = (n2.component = n1.component)
+    if (shouldUpdateComponent(n1, n2)) {
+      instance.next = n2
+      instance.update()
+    } else {
+      n2.el = n1.el
+      instance.vnode = n2
+    }
   }
 
   function mountComponent(initialVnode, container, parentComponent, anchor) {
     // 创建组件实例
-    const instance = createComponentInstance(initialVnode, parentComponent)
+    const instance = (initialVnode.component = createComponentInstance(initialVnode, parentComponent))
     // 处理setup函数
     setupComponent(instance)
     setupRenderEffect(instance, initialVnode, container, anchor)
   }
 
   function setupRenderEffect(instance, initialVnode, container, anchor) {
-    effect(() => {
+    instance.update = effect(() => {
       if (!instance.isMounted) {
-        console.log('init');
-
         const { proxy } = instance
         const subTree = (instance.subTree = instance.render.call(proxy))
-        console.log(subTree);
-
         // patch
         patch(null, subTree, container, instance, anchor)
         initialVnode.el = subTree.el
         instance.isMounted = true
       } else {
-        console.log('update');
+        const { next, vnode } = instance
+        if (next) {
+          next.el = vnode.el
+          updateComponentPreRender(instance, next)
+        }
         const { proxy } = instance
         const subTree = instance.render.call(proxy)
         const prevSubTree = instance.subTree
         instance.subTree = subTree
-        console.log('current', subTree);
-        console.log('prev', prevSubTree);
         patch(prevSubTree, subTree, container, instance, anchor)
       }
 
     })
+  }
+
+  function updateComponentPreRender(instance, nextVNode) {
+    instance.vnode = nextVNode
+    instance.next = null
+    instance.props = nextVNode.props
   }
 
   return {
