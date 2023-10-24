@@ -1,4 +1,4 @@
-import { h, ref, getCurrentInstance, nextTick } from '../../packages/vue/dist/guide-mini-vue.esm.js';
+import { h, ref, getCurrentInstance, nextTick } from '../../dist/guide-mini-vue.esm.js';
 
 export const App = {
   name: 'App',
