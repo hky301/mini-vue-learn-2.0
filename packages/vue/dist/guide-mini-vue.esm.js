@@ -468,6 +468,32 @@ function shouldUpdateComponent(prevVNode, nextVNode) {
     return false;
 }
 
+const queue = [];
+let isFlushPending = false;
+const p = Promise.resolve();
+function nextTick(fn) {
+    return fn ? p.then(fn) : p;
+}
+function queueJobs(job) {
+    if (!queue.includes(job)) {
+        queue.push(job);
+    }
+    queueFlush();
+}
+function queueFlush() {
+    if (isFlushPending)
+        return;
+    isFlushPending = true;
+    nextTick(flushJobs);
+}
+function flushJobs() {
+    isFlushPending = false;
+    let job;
+    while (job = queue.shift()) {
+        job && job();
+    }
+}
+
 function createRenderer(options) {
     const { createElement: hostCreateElement, patchProp: hostPatchProp, insert: hostInsert, remove: hostRemove, setElementText: hostSetElementText } = options;
     function render(vnode, container) {
@@ -740,6 +766,10 @@ function createRenderer(options) {
                 instance.subTree = subTree;
                 patch(prevSubTree, subTree, container, instance, anchor);
             }
+        }, {
+            scheduler() {
+                queueJobs(instance.update);
+            }
         });
     }
     function updateComponentPreRender(instance, nextVNode) {
@@ -835,4 +865,4 @@ function createApp(...args) {
     return renderer.createApp(...args);
 }
 
-export { ReactiveEffect, ReactiveFlags, computed, createApp, createRenderer, createTextVNode, effect, getCurrentInstance, h, inject, isProxy, isReactive, isReadonly, isRef, isTracking, provide, proxyRefs, reactive, readonly, ref, renderSlots, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };
+export { ReactiveEffect, ReactiveFlags, computed, createApp, createRenderer, createTextVNode, effect, getCurrentInstance, h, inject, isProxy, isReactive, isReadonly, isRef, isTracking, nextTick, provide, proxyRefs, reactive, readonly, ref, renderSlots, shallowReadonly, stop, track, trackEffects, trackRefValue, trigger, triggerEffects, unRef };

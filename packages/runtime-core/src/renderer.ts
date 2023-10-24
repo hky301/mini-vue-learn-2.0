@@ -4,6 +4,7 @@ import { Fragment, Text, isSameVNodeType } from "./vnode";
 import { createAppApi } from "./createApp";
 import { effect } from "@hky-vue/reactivity";
 import { shouldUpdateComponent } from "./componentUpdateUtils";
+import { queueJobs } from "./scheduler";
 
 
 export function createRenderer(options) {
@@ -317,7 +318,10 @@ export function createRenderer(options) {
         instance.subTree = subTree
         patch(prevSubTree, subTree, container, instance, anchor)
       }
-
+    }, {
+      scheduler() {
+        queueJobs(instance.update)
+      }
     })
   }
 
