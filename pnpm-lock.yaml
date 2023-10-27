@@ -30,6 +30,8 @@ importers:
         specifier: ^0.31.3
         version: 0.31.3
 
+  packages/compiler-core: {}
+
   packages/reactivity:
     dependencies:
       '@hky-vue/shared':
@@ -51,9 +53,9 @@ importers:
 
   packages/vue:
     dependencies:
-      '@hky-vue/reactivity':
+      '@hky-vue/compiler-core':
         specifier: workspace:^
-        version: link:../reactivity
+        version: link:../compiler-core
       '@hky-vue/runtime-core':
         specifier: workspace:^
         version: link:../runtime-core
