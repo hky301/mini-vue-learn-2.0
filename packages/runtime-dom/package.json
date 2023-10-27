@@ -8,5 +8,9 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@hky-vue/runtime-core": "workspace:^1.0.0",
+    "@hky-vue/shared": "workspace:^1.0.0"
+  }
 }
