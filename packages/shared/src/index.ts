@@ -2,6 +2,10 @@ export function isObject(target) {
   return typeof target === 'object' && target !== null
 }
 
+export function isString(value) {
+  return typeof value === 'string'
+}
+
 export const extend = Object.assign
 
 export const hasChanged = (val, newValue) => {
